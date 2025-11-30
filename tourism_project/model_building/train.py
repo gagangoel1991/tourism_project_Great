@@ -62,58 +62,54 @@ param_grid = {
     'xgbclassifier__reg_lambda': [0.1, 1]
 }
 
-# Pipeline
+# Model pipeline
 model_pipeline = make_pipeline(preprocessor, xgb_model)
 
 with mlflow.start_run():
-    # Grid Search
-    grid_search = GridSearchCV(
-        model_pipeline,
-        param_grid,
-        cv=3,
-        n_jobs=-1,
-        scoring='accuracy'
-    )
+    # Hyperparameter tuning
+    grid_search = GridSearchCV(model_pipeline, param_grid, cv=5, n_jobs=-1)
     grid_search.fit(Xtrain, ytrain)
 
-    # Log all parameter sets in one run (no nested runs)
+    # Log all parameter combinations and their mean test scores
     results = grid_search.cv_results_
     for i in range(len(results['params'])):
         param_set = results['params'][i]
         mean_score = results['mean_test_score'][i]
+        std_score = results['std_test_score'][i]
 
-        # Prefix metrics with index to avoid overwriting
-        mlflow.log_params({f"param_set_{i}_{k}": v for k, v in param_set.items()})
-        mlflow.log_metric(f"mean_score_{i}", mean_score)
+        # Log each combination as a separate MLflow run
+        with mlflow.start_run(nested=True):
+            mlflow.log_params(param_set)
+            mlflow.log_metric("mean_test_score", mean_score)
+            mlflow.log_metric("std_test_score", std_score)
 
-    # Best model
+    # Log best parameters separately in main run
     mlflow.log_params(grid_search.best_params_)
+
+    # Store and evaluate the best model
     best_model = grid_search.best_estimator_
 
-    # Predictions
-    y_pred_train = best_model.predict(Xtrain)
-    y_pred_test = best_model.predict(Xtest)
+    classification_threshold = 0.45
 
-    # Metrics
-    train_acc = accuracy_score(ytrain, y_pred_train)
-    test_acc = accuracy_score(ytest, y_pred_test)
+    y_pred_train_proba = best_model.predict_proba(Xtrain)[:, 1]
+    y_pred_train = (y_pred_train_proba >= classification_threshold).astype(int)
 
-    train_f1 = f1_score(ytrain, y_pred_train)
-    test_f1 = f1_score(ytest, y_pred_test)
+    y_pred_test_proba = best_model.predict_proba(Xtest)[:, 1]
+    y_pred_test = (y_pred_test_proba >= classification_threshold).astype(int)
 
-    train_auc = roc_auc_score(ytrain, best_model.predict_proba(Xtrain)[:,1])
-    test_auc = roc_auc_score(ytest, best_model.predict_proba(Xtest)[:,1])
+    train_report = classification_report(ytrain, y_pred_train, output_dict=True)
+    test_report = classification_report(ytest, y_pred_test, output_dict=True)
 
-    # Log metrics
     mlflow.log_metrics({
-        "train_accuracy": train_acc,
-        "test_accuracy": test_acc,
-        "train_f1": train_f1,
-        "test_f1": test_f1,
-        "train_auc": train_auc,
-        "test_auc": test_auc
+        "train_accuracy": train_report['accuracy'],
+        "train_precision": train_report['1']['precision'],
+        "train_recall": train_report['1']['recall'],
+        "train_f1-score": train_report['1']['f1-score'],
+        "test_accuracy": test_report['accuracy'],
+        "test_precision": test_report['1']['precision'],
+        "test_recall": test_report['1']['recall'],
+        "test_f1-score": test_report['1']['f1-score']
     })
-
 
     model_path = "best_tourism_model_v1.joblib"
     joblib.dump(best_model, model_path)
