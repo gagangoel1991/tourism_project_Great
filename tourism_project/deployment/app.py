@@ -18,7 +18,7 @@ Please enter the app details below to get a revenue prediction.
 # User input
 age_category = st.selectbox("Age Category", ["Teen", "Young Adult", "Adult", "Middle Age", "Senior"])
 duration_category= st.selectbox("Duration of Pitch", ["Very Short", "Short","Medium","Long","Very Long"])
-income_category= st.selectbox("Income Category", ["Low", "Lower-Middle","Middle","Upper-Middle","High"])
+income_category= st.selectbox("Income Category", ["Low Less than 10K", "Lower-Middle Greator than 10K  and Less than 20K", "Middle Greator than 20K  and Less than 40K", "Upper-Middle Greator than 40K  and Less than 70K", "High Greator than 70K"])
 typeof_contact = st.selectbox("Type of Contact", ["Company Invited", "Self Contacted"])
 city_tier = st.selectbox("City Tier", [1, 2, 3])
 occupation = st.selectbox("Occupation", ["Free Lancer", "Small Business", "Large Business", "Salaried"])
